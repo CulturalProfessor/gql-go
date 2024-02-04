@@ -1,0 +1,5 @@
+module github.com/CulturalProfessor/gql-go
+
+go 1.18
+
+require github.com/graphql-go/graphql v0.8.1 // indirect
