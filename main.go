@@ -1,152 +1,36 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"github.com/graphql-go/graphql"
+	"context"
+	"github.com/CulturalProfessor/gql-go/invoicer"
+	"google.golang.org/grpc"
 	"log"
+	"net"
 )
 
-type Tutorial struct {
-	ID       int
-	Title    string
-	Author   Author
-	Comments []Comment
+type myInvoicerServer struct {
+	invoicer.UnimplementedInvoicerServer
 }
 
-type Author struct {
-	Name      string
-	Tutorials []int
-}
-
-type Comment struct {
-	Body string
-}
-
-func populate() []Tutorial {
-	author := &Author{Name: "Elliot Forbes", Tutorials: []int{1}}
-	tutorial := Tutorial{
-		ID:     1,
-		Title:  "Go GraphQL Tutorial",
-		Author: *author,
-		Comments: []Comment{
-			{Body: "First Comment"},
-		},
-	}
-	var tutorials []Tutorial
-	tutorials = append(tutorials, tutorial)
-
-	return tutorials
+func (s myInvoicerServer) Create(context.Context, *invoicer.CreateRequest) (*invoicer.CreateResponse, error) {
+	return &invoicer.CreateResponse{
+		Pdf:  []byte("test"),
+		Docx: []byte("test"),
+	}, nil
 }
 
 func main() {
-	fmt.Println("Hello, world!")
-
-	tutorials := populate()
-
-	var authorType = graphql.NewObject(
-		graphql.ObjectConfig{
-			Name: "Author",
-			Fields: graphql.Fields{
-				"Name": &graphql.Field{
-					Type: graphql.String,
-				},
-				"Tutorial": &graphql.Field{
-					Type: graphql.NewList(graphql.Int),
-				},
-			},
-		},
-	)
-
-	var commentType = graphql.NewObject(
-		graphql.ObjectConfig{
-			Name: "Comment",
-			Fields: graphql.Fields{
-				"body": &graphql.Field{
-					Type: graphql.String,
-				},
-			},
-		},
-	)
-
-	var tutorialType = graphql.NewObject(
-		graphql.ObjectConfig{
-			Name: "Tutorial",
-			Fields: graphql.Fields{
-				"id": &graphql.Field{
-					Type: graphql.Int,
-				},
-				"title": &graphql.Field{
-					Type: graphql.String,
-				},
-				"author": &graphql.Field{
-					Type: authorType,
-				},
-				"comments": &graphql.Field{
-					Type: graphql.NewList(commentType),
-				},
-			},
-		},
-	)
-
-	fields := graphql.Fields{
-		"tutorial": &graphql.Field{
-			Type:        tutorialType,
-			Description: "Get Tutorial by ID",
-			Args: graphql.FieldConfigArgument{
-				"id": &graphql.ArgumentConfig{
-					Type: graphql.Int,
-				},
-			},
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				id, ok := p.Args["id"].(int)
-				if ok {
-					for _, tutorial := range tutorials {
-						if int(tutorial.ID) == id {
-							return tutorial, nil
-						}
-					}
-				}
-				return nil, nil
-			},
-		},
-		"list": &graphql.Field{
-			Type:        graphql.NewList(tutorialType),
-			Description: "Get Full Tutorial List",
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-				return tutorials, nil
-			},
-		},
-	}
-
-	//defining the object config
-	rootQuery := graphql.ObjectConfig{Name: "RootQuery", Fields: fields}
-	// define schema config
-	schemaConfig := graphql.SchemaConfig{Query: graphql.NewObject(rootQuery)}
-	// create our schema
-	schema, err := graphql.NewSchema(schemaConfig)
+	lis, err := net.Listen("tcp", "8089")
 	if err != nil {
-		log.Fatalf("Failed to create new GraphQL Schema, err %v", err)
+		log.Fatalf("Cannot create Listener: %s", err)
 	}
 
-	query := `
-	{
-		tutorial(id:1){
-			title
-			author{
-				Name
-				Tutorial
-			}
-		}
-	}
-	`
-	params := graphql.Params{Schema: schema, RequestString: query}
+	serverRegistrar := grpc.NewServer()
+	service := &myInvoicerServer{}
 
-	r := graphql.Do(params)
-
-	if len(r.Errors) > 0 {
-		log.Fatalf("Failed Operation, error %+v", r.Errors)
+	invoicer.RegisterInvoicerServer(serverRegistrar, service)
+	err = serverRegistrar.Serve(lis)
+	if err != nil {
+		log.Fatalf("Impossible to serve: %s", err)
 	}
-	rJSON, _ := json.Marshal(r)
-	fmt.Printf("%s \n", rJSON)
 }
