@@ -20,7 +20,7 @@ func (s myInvoicerServer) Create(context.Context, *invoicer.CreateRequest) (*inv
 }
 
 func main() {
-	lis, err := net.Listen("tcp", "8089")
+	lis, err := net.Listen("tcp", "localhost:8089")
 	if err != nil {
 		log.Fatalf("Cannot create Listener: %s", err)
 	}
